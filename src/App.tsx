@@ -8,6 +8,7 @@ import './App.css';
  */
 interface IState {
   data: ServerRespond[],
+  loadGraph: boolean
 }
 
 /**
@@ -22,6 +23,7 @@ class App extends Component<{}, IState> {
       // data saves the server responds.
       // We use this state to parse data down to the child element (Graph) as element property
       data: [],
+      loadGraph: false // add this boolean to ensure state has data before rendering graph
     };
   }
 
@@ -29,18 +31,45 @@ class App extends Component<{}, IState> {
    * Render Graph react component with state.data parse as property data
    */
   renderGraph() {
-    return (<Graph data={this.state.data}/>)
+    if(this.state.loadGraph) {
+      return (<Graph data={this.state.data}/>)
+    }
   }
 
   /**
    * Get new data from server and update the state with the new data
    */
   getDataFromServer() {
-    DataStreamer.getData((serverResponds: ServerRespond[]) => {
-      // Update the state by creating a new array of data that consists of
-      // Previous data in the state and the new data from server
-      this.setState({ data: [...this.state.data, ...serverResponds] });
-    });
+    // Ensure we can destroy the unique interval keys after certain iterations
+    // to avoid memory leaks / unexpected behaviours
+    // Define the limit number of attempts to fetch data
+    const limit = 1000;
+    let cycleAttempts = 0;
+
+
+    // Continually call server after every 1 sec after button clicked
+    const intervalKey = setInterval(() => {
+      // Fetch data from the server
+      DataStreamer.getData((serverResponds: ServerRespond[]) => {
+        // Update the state by creating a new array of data that consists of
+        // Previous data in the state and the new data from server
+        this.setState(
+          { 
+            data: [...this.state.data, ...serverResponds], 
+            loadGraph: true // Indicate that the graph should be shown
+          });
+
+        // Increment the number of attempts
+        cycleAttempts++;
+
+        // counts the number of iterations and clears interval instances created previously 999 times
+        // to free memory
+        if(cycleAttempts >= limit){
+            clearInterval(intervalKey);
+        }
+      });
+    },1000); // reload after every 1 sec
+
   }
 
   /**
